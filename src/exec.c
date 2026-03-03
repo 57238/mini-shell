@@ -25,7 +25,7 @@ int exec_cmd(char **args) {
 			}
 			if (WIFEXITED(status))
                 		return WEXITSTATUS(status);
-           		if (WIFSIGNALED(status))
+			if (WIFSIGNALED(status))
                 		return 128 + WTERMSIG(status);
 		}
 	}	
