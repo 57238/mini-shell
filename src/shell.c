@@ -5,9 +5,9 @@
 #include <unistd.h>
 
 int run_shell(void) {
-	char *line;
+	char *line = NULL;
 	char **args;
-	int status;
+	int last_status = 0;
 	size_t line_size = 0;
 	
 	sig_shell();
@@ -30,8 +30,12 @@ int run_shell(void) {
 			char *path = args[1];
 			if (!path)
 				path = getenv("HOME");
-			if(!path || chdir(path) != 0)
+			if(!path || chdir(path) != 0) {
 				perror("cd");
+				last_status = 1;
+			}
+			else
+				last_status = 0;
 			free(args);
 			continue;
 		}
@@ -39,7 +43,7 @@ int run_shell(void) {
 			int i = 1;
 			while (args[i]) {
 				if (strcmp(args[i], "$?") == 0)
-					printf("%d", status);
+					printf("%d", last_status);
 				else
 					printf("%s", args[i]);
 				if (args[i+1])
@@ -47,9 +51,11 @@ int run_shell(void) {
 				i++;
 			}
 			printf("\n");
+			free(args);
+			last_status = 0;
 			continue;		
 		}		
-		status = exec_cmd(args);
+		last_status = exec_cmd(args);
 		free(args);
 
 	}
