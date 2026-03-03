@@ -7,6 +7,7 @@
 int run_shell(void) {
 	char *line;
 	char **args;
+	int status;
 	size_t line_size = 0;
 	
 	sig_shell();
@@ -33,8 +34,22 @@ int run_shell(void) {
 				perror("cd");
 			free(args);
 			continue;
-		}			
-		exec_cmd(args);
+		}
+		if (strcmp(args[0], "echo") == 0) {
+			int i = 1;
+			while (args[i]) {
+				if (strcmp(args[i], "$?") == 0)
+					printf("%d", status);
+				else
+					printf("%s", args[i]);
+				if (args[i+1])
+					printf(" ");
+				i++;
+			}
+			printf("\n");
+			continue;		
+		}		
+		status = exec_cmd(args);
 		free(args);
 
 	}
