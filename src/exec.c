@@ -11,23 +11,26 @@ int exec_cmd(char **args) {
 		perror("fork");
 		return 1;
 	}
-	else if (pid == 0) {
+	if (pid == 0) {
+		sig_child();
 		execvp(args[0], args);
 		perror("execvp");
 		_exit(127);
 	}
-	else {
-		while (1) {
-			pid_t w = waitpid(pid, &status, WUNTRACED);
-			if (w == -1) {
-				perror("mini-shell");
-				return 1;
-			}
-			if (WIFEXITED(status))
-                		return WEXITSTATUS(status);
-			if (WIFSIGNALED(status))
-                		return 128 + WTERMSIG(status);
-		}
-	}	
+	signal(SIGINT, SIG_IGN); // ignore sigint while waiting
+			
+	if (waitpid(pid, &status, 0) == -1) {
+		perror("mini-shell");
+		sig_shell();
+		return 1;
+	}
+	if (WIFSIGNALED(status) && WTERMSIG(status) == SIGINT)
+		write(1, "\n", 1);
+	sig_shell();
+
+	if (WIFEXITED(status))
+		return WEXITSTATUS(status);
+	if (WIFSIGNALED(status))
+		return 128 + WTERMSIG(status);
 	return 1;
 }

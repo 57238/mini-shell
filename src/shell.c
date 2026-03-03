@@ -8,7 +8,8 @@ int run_shell(void) {
 	char *line;
 	char **args;
 	size_t line_size = 0;
-
+	
+	sig_shell();
 	while(1) {
 		printf("mini-shell$ ");
 		if (getline(&line, &line_size, stdin) == -1) {
