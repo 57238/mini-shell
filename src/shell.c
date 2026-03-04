@@ -1,4 +1,5 @@
 #include "minishell.h"
+#include "token.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +18,10 @@ int run_shell(void) {
 			printf("\n");
 			break;
 		}
+		// temp text tokenizer
+		token *tokens = tokenize(line);
+		print_tokens(tokens);
+
 		args = split_line(line);
 		if (!args || !args[0]) {
 			free(args);
