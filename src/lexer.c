@@ -48,7 +48,63 @@ int is_op(char c) {
 	return (c == '|' || c == '<' || c == '>');
 }
 
-// forms the linked list of tokens
+char *join_words(char *word1, char *word2) {
+	int len1 = word1 ? strlen(word1) : 0;
+	int len2 = word2 ? strlen(word2) : 0;
+
+	char *result = malloc(len1 + len2 + 1);
+	if (!result) {
+		free(word1);
+		free(word2);
+		return NULL;
+	}
+	memcpy(result, word1, len1);
+	memcpy(result + len1, word2, len2);
+
+	result[len1+len2] = '\0';
+
+	free(word1);
+	free(word2);
+
+	return result;
+}
+
+char *read_word(char *line, int *i) {
+	char *word = NULL;
+
+	while(line[*i] && !isspace(line[*i]) && !is_op(line[*i])) {
+		if (line[*i] == '"' || line[*i] == '\'') {
+			int start;
+			char quote = line[*i];
+			
+			(*i)++;
+			
+			start = (*i); 
+
+			while (line[*i] && line[*i] != quote)
+				(*i)++;
+
+			if (line[*i] != quote) { // if unclosed quote
+				free(word);
+				return NULL;
+			}
+			
+			char *part = strndup(&line[start], *i - start);
+			word = join_words(word, part);
+				
+			(*i)++;
+		}
+		else {
+			int start = *i;
+			while(line[*i] && !isspace(line[*i]) && !is_op(line[*i]) && line[*i] != '"' && line[*i] != '\'')
+				(*i)++;
+			char *part = strndup(&line[start], *i - start);
+			word = join_words(word, part);
+		}
+	}
+	return word;	
+}
+
 
 token *tokenize(char *line) {
 	int i = 0;
@@ -86,11 +142,7 @@ token *tokenize(char *line) {
 			}
 			continue;
 		}
-		int start = i;
-		while (line[i] && !isspace(line[i]) && !is_op(line[i]))
-			i++;
-
-		char *word = strndup(&line[start], i-start);
+		char *word = read_word(line, &i);
 
 		add_token(&head, &tail, make_token(TOK_WORD, word));
 		
