@@ -43,7 +43,13 @@ int run_shell(void) {
 			continue;
 		}
 		if (strcmp(cmd->argv[0], "echo") == 0) {
+			int saved[2];
 			int i = 1;
+			if (cmd->redirs && (save_fds(saved) < 0 || apply_redirs(cmd->redirs) < 0)) {
+				last_status = 1;
+				free_cmds(cmd);
+				continue;
+			}
 			while (cmd->argv[i]) {
 				if (strcmp(cmd->argv[i], "$?") == 0)
 					printf("%d", last_status);
@@ -54,11 +60,15 @@ int run_shell(void) {
 				i++;
 			}
 			printf("\n");
+			if (cmd->redirs) {
+				fflush(stdout);
+				restore_fds(saved);
+			}
 			last_status = 0;
 			free_cmds(cmd);
 			continue;
 		}
-		last_status = exec_cmd(cmd->argv);
+		last_status = exec_cmd(cmd);
 		free_cmds(cmd);
 	}
 	free(line);
