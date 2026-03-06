@@ -1,5 +1,6 @@
 #include "minishell.h"
 #include "token.h"
+#include "parser.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,62 +8,58 @@
 
 int run_shell(void) {
 	char *line = NULL;
-	char **args;
 	int last_status = 0;
 	size_t line_size = 0;
-	
+
 	sig_shell();
-	while(1) {
+	while (1) {
 		printf("mini-shell$ ");
 		if (getline(&line, &line_size, stdin) == -1) {
 			printf("\n");
 			break;
 		}
-		// temp text tokenizer
-		token *tokens = tokenize(line);
-		print_tokens(tokens);
+		token *tok = tokenize(line);
+		command *cmd = parse_cmd(tok);
+		free_tokens(tok);
 
-		args = split_line(line);
-		if (!args || !args[0]) {
-			free(args);
+		if (!cmd || !cmd->argv[0]) {
+			free_cmds(cmd);
 			continue;
 		}
-		if (strcmp(args[0], "exit") == 0) {
-			free(args);
+		if (strcmp(cmd->argv[0], "exit") == 0) {
+			free_cmds(cmd);
 			break;
 		}
-		if (strcmp(args[0], "cd") == 0) {
-			char *path = args[1];
+		if (strcmp(cmd->argv[0], "cd") == 0) {
+			char *path = cmd->argv[1];
 			if (!path)
 				path = getenv("HOME");
-			if(!path || chdir(path) != 0) {
+			if (!path || chdir(path) != 0) {
 				perror("cd");
 				last_status = 1;
-			}
-			else
+			} else
 				last_status = 0;
-			free(args);
+			free_cmds(cmd);
 			continue;
 		}
-		if (strcmp(args[0], "echo") == 0) {
+		if (strcmp(cmd->argv[0], "echo") == 0) {
 			int i = 1;
-			while (args[i]) {
-				if (strcmp(args[i], "$?") == 0)
+			while (cmd->argv[i]) {
+				if (strcmp(cmd->argv[i], "$?") == 0)
 					printf("%d", last_status);
 				else
-					printf("%s", args[i]);
-				if (args[i+1])
+					printf("%s", cmd->argv[i]);
+				if (cmd->argv[i + 1])
 					printf(" ");
 				i++;
 			}
 			printf("\n");
-			free(args);
 			last_status = 0;
-			continue;		
-		}		
-		last_status = exec_cmd(args);
-		free(args);
-
+			free_cmds(cmd);
+			continue;
+		}
+		last_status = exec_cmd(cmd->argv);
+		free_cmds(cmd);
 	}
 	free(line);
 	return 0;

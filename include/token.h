@@ -18,4 +18,5 @@ typedef struct token {
 
 token *tokenize(char *line);
 void print_tokens(token *head);
+void free_tokens(token *head);
 #endif

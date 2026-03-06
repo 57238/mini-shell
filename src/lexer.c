@@ -106,6 +106,15 @@ char *read_word(char *line, int *i) {
 }
 
 
+void free_tokens(token *head) {
+	while (head) {
+		token *next = head->next;
+		free(head->text);
+		free(head);
+		head = next;
+	}
+}
+
 token *tokenize(char *line) {
 	int i = 0;
 	token *head = NULL, *tail = NULL;
