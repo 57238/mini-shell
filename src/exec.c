@@ -2,6 +2,7 @@
 #include "parser.h"
 #include <sys/wait.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -49,6 +50,83 @@ int apply_redirs(redirect *r) {
 	return 0;
 }
 
+int exec_pipeline(command *cmds) {
+	int n = 0;
+	command *c;
+	int (*pipes)[2];
+	pid_t *pids;
+	int i;
+	int status;
+	int last_status = 0;
+
+	for (c = cmds; c; c = c->next)
+		n++;
+	if (n == 1)
+		return exec_cmd(cmds);
+
+	pipes = malloc((n - 1) * sizeof(*pipes));
+	pids = malloc(n * sizeof(pid_t));
+	if (!pipes || !pids) {
+		free(pipes);
+		free(pids);
+		return 1;
+	}
+	for (i = 0; i < n - 1; i++) {
+		if (pipe(pipes[i]) < 0) {
+			perror("pipe");
+			free(pipes);
+			free(pids);
+			return 1;
+		}
+	}
+	c = cmds;
+	for (i = 0; i < n; i++, c = c->next) {
+		pids[i] = fork();
+		if (pids[i] < 0) {
+			perror("fork");
+			free(pipes);
+			free(pids);
+			return 1;
+		}
+		if (pids[i] == 0) {
+			sig_child();
+			if (i > 0)
+				dup2(pipes[i - 1][0], STDIN_FILENO);
+			if (i < n - 1)
+				dup2(pipes[i][1], STDOUT_FILENO);
+			for (int j = 0; j < n - 1; j++) {
+				close(pipes[j][0]);
+				close(pipes[j][1]);
+			}
+			if (apply_redirs(c->redirs) < 0)
+				_exit(1);
+			execvp(c->argv[0], c->argv);
+			perror("execvp");
+			_exit(127);
+		}
+	}
+	for (i = 0; i < n - 1; i++) {
+		close(pipes[i][0]);
+		close(pipes[i][1]);
+	}
+	signal(SIGINT, SIG_IGN);
+	for (i = 0; i < n; i++) {
+		waitpid(pids[i], &status, 0);
+		if (i == n - 1) {
+			if (WIFEXITED(status))
+				last_status = WEXITSTATUS(status);
+			else if (WIFSIGNALED(status))
+				last_status = 128 + WTERMSIG(status);
+		}
+	}
+	if (WIFSIGNALED(status) && WTERMSIG(status) == SIGINT)
+		write(1, "\n", 1);
+	sig_shell();
+	free(pipes);
+	free(pids);
+	return last_status;
+}
+
 int exec_cmd(command *cmd) {
 	pid_t pid = fork();
 	int status = 0;
@@ -65,7 +143,7 @@ int exec_cmd(command *cmd) {
 		perror("execvp");
 		_exit(127);
 	}
-	signal(SIGINT, SIG_IGN); // ignore sigint while waiting
+	signal(SIGINT, SIG_IGN);
 			
 	if (waitpid(pid, &status, 0) == -1) {
 		perror("mini-shell");

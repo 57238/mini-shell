@@ -68,7 +68,7 @@ int run_shell(void) {
 			free_cmds(cmd);
 			continue;
 		}
-		last_status = exec_cmd(cmd);
+		last_status = exec_pipeline(cmd);
 		free_cmds(cmd);
 	}
 	free(line);
