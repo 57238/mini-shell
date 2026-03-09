@@ -2,6 +2,7 @@
 #include "parser.h"
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 static command *new_cmd(void) {
 	command *cmd = malloc(sizeof(*cmd));
@@ -35,6 +36,7 @@ static void add_redir(command *cmd, token_type type, char *file) {
 		return;
 	r->type = type;
 	r->file = strdup(file);
+	r->fd = -1;
 	r->next = NULL;
 	if (!cmd->redirs)
 		cmd->redirs = r;
@@ -98,6 +100,8 @@ void free_cmds(command *cmd) {
 		while (r) {
 			rn = r->next;
 			free(r->file);
+			if (r->fd >= 0)
+				close(r->fd);
 			free(r);
 			r = rn;
 		}

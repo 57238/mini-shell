@@ -3,8 +3,53 @@
 #include <sys/wait.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+
+static int collect_one_heredoc(redirect *r) {
+	char *line = NULL;
+	size_t size = 0;
+	ssize_t nread;
+	int pipefd[2];
+
+	if (pipe(pipefd) < 0) {
+		perror("pipe");
+		return -1;
+	}
+	while (1) {
+		printf("> ");
+		fflush(stdout);
+		nread = getline(&line, &size, stdin);
+		if (nread == -1)
+			break;
+		if (line[nread - 1] == '\n')
+			line[nread - 1] = '\0';
+		if (strcmp(line, r->file) == 0)
+			break;
+		line[nread - 1] = '\n';
+		write(pipefd[1], line, nread);
+	}
+	free(line);
+	close(pipefd[1]);
+	r->fd = pipefd[0];
+	return 0;
+}
+
+static int collect_heredocs(command *cmds) {
+	command *c;
+	redirect *r;
+
+	for (c = cmds; c; c = c->next) {
+		for (r = c->redirs; r; r = r->next) {
+			if (r->type == TOK_HEREDOC) {
+				if (collect_one_heredoc(r) < 0)
+					return -1;
+			}
+		}
+	}
+	return 0;
+}
 
 int save_fds(int saved[2]) {
 	saved[0] = dup(STDIN_FILENO);
@@ -33,14 +78,14 @@ int apply_redirs(redirect *r) {
 		else if (r->type == TOK_APPEND)
 			fd = open(r->file, O_WRONLY | O_CREAT | O_APPEND, 0644);
 		else if (r->type == TOK_HEREDOC) {
-			fprintf(stderr, "mini-shell: heredoc not yet supported\n");
-			return -1;
+			fd = r->fd;
+			r->fd = -1;
 		}
 		if (fd < 0) {
 			perror(r->file);
 			return -1;
 		}
-		if (r->type == TOK_REDIR_IN)
+		if (r->type == TOK_REDIR_IN || r->type == TOK_HEREDOC)
 			dup2(fd, STDIN_FILENO);
 		else
 			dup2(fd, STDOUT_FILENO);
@@ -63,6 +108,8 @@ int exec_pipeline(command *cmds) {
 		n++;
 	if (n == 1)
 		return exec_cmd(cmds);
+	if (collect_heredocs(cmds) < 0)
+		return 1;
 
 	pipes = malloc((n - 1) * sizeof(*pipes));
 	pids = malloc(n * sizeof(pid_t));
@@ -128,8 +175,12 @@ int exec_pipeline(command *cmds) {
 }
 
 int exec_cmd(command *cmd) {
-	pid_t pid = fork();
+	pid_t pid;
 	int status = 0;
+
+	if (collect_heredocs(cmd) < 0)
+		return 1;
+	pid = fork();
 
 	if (pid < 0) {
 		perror("fork");

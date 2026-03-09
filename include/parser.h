@@ -6,6 +6,7 @@
 typedef struct redirect {
 	token_type	type;
 	char		*file;
+	int		fd;
 	struct redirect	*next;
 } redirect;
 
